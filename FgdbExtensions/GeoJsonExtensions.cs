@@ -4,10 +4,103 @@ using System.Linq;
 using System.Text;
 using Esri.FileGDB;
 
+//TODO: throw in some exception handling throughout
 namespace Zekiah.FGDB
 {
     public static class GeoJsonExtensions
     {
+        public static string ToGeoJson(this Esri.FileGDB.RowCollection rows)
+        {
+            string retval = "{ \"type\": \"FeatureCollection\", ";
+            retval += "\"features\": [";
+            List<string> feats = new List<string>();
+            foreach (Row row in rows)
+            {
+                feats.Add(row.ToGeoJson());
+            }
+            var featarray = feats.ToArray();
+            var featjoin = string.Join(",", featarray);
+            retval += featjoin;
+            retval += "]}";
+            return retval;
+        }
+
+        public static string ToGeoJson(this Esri.FileGDB.Row row)
+        {
+            string retval = "{ \"type\": \"Feature\", ";
+            var geom = row.GetGeometry();
+            string geomstr = "\"geometry\": " + geom.ToGeoJson() + ", ";
+            retval += geomstr;
+            retval += processFields(row);
+            retval += "}";
+            return retval;
+        }
+
+        private static string processFields(Esri.FileGDB.Row row)
+        {
+            string retval = "\"properties\": {";
+            List<string> props = new List<string>();
+            string proptemplate = "\"{0}\": \"{1}\"";
+            for (int fldnum = 0; fldnum < row.FieldInformation.Count; fldnum++)
+            {
+                string fldname = row.FieldInformation.GetFieldName(fldnum);
+                string fldval = "";
+                if (row.IsNull(fldname))
+                {
+                    fldval = "null";
+                }
+                else
+                {
+                    switch (row.FieldInformation.GetFieldType(fldnum))
+                    {
+                        case FieldType.Geometry:
+                            fldval = "geometry";
+                            break;
+                        case FieldType.Blob:
+                            fldval = "blob";
+                            break;
+                        case FieldType.SmallInteger:
+                            fldval = row.GetShort(fldname).ToString();
+                            break;
+                        case FieldType.Integer:
+                            fldval = row.GetInteger(fldname).ToString();
+                            break;
+                        case FieldType.Single:
+                            fldval = row.GetFloat(fldname).ToString();
+                            break;
+                        case FieldType.Double:
+                            fldval = row.GetDouble(fldname).ToString();
+                            break;
+                        case FieldType.String:
+                            fldval = row.GetString(fldname);
+                            break;
+                        case FieldType.Date:
+                            fldval = row.GetDate(fldname).ToLongTimeString();
+                            break;
+                        case FieldType.OID:
+                            fldval = row.GetOID().ToString();
+                            break;
+                        case FieldType.GUID:
+                            fldval = row.GetGUID(fldname).ToString();
+                            break;
+                        case FieldType.GlobalID:
+                            fldval = row.GetGlobalID().ToString();
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                string propval = string.Format(proptemplate, fldname, fldval);
+                props.Add(propval);
+            }
+            var proparray = props.ToArray();
+            string propsjoin = string.Join(",", proparray);
+            retval += propsjoin;
+            retval += "}";
+
+            return retval;
+        }
+        
         public static string ToGeoJson(this Esri.FileGDB.ShapeBuffer geometry)
         {
             string retval = "";

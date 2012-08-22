@@ -1,0 +1,82 @@
+﻿@{
+    ViewBag.Title = "Home Page";
+}
+
+<h2>@ViewBag.Message</h2>
+<p>@ViewBag.Subtitle</p>
+
+    <div id="map"</div>
+@*    <script>
+        var map;
+        function initMap() {
+            //$('#map').height($('body').height());
+            map = new L.Map('map');
+            //create a point over fort collins...
+            var theFort = new L.LatLng(40.60144, -105.07599); // geographical point (longitude and latitude)
+
+            //Add Esri Tile Cache...
+            var streetMapUrl = 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+            var streetMapLayer = new L.TileLayer(streetMapUrl, { maxZoom: 19, attribution: 'Tiles: &copy; Esri' });
+
+            map.setView(theFort, 6).addLayer(streetMapLayer);
+
+            //ArcGIS Dynamic Layer
+            var windLayer = new L.AgsDynamicLayer('http://ags2.dtsagile.com/ArcGIS/rest/services/LiveFeeds/WxMappr/MapServer',
+                { maxZoom: 19,
+                    attribution: "NOAA",
+                    opacity: 1,
+                    layers: 'show:2'
+                });
+            map.addLayer(windLayer);
+
+
+            //ArcGIS Dynamic Layer, tile requests
+            var nexrad = new L.TileLayer.AGSDynamic('http://ags2.dtsagile.com/ArcGIS/rest/services/LiveFeeds/WxMappr/MapServer',
+                 { maxZoom: 19,
+                     attribution: "NEXRAD",
+                     opacity: 0.5,
+                     layers: 'show:18',
+                     cacheBuster: false
+                 });
+            map.addLayer(nexrad);
+            //thats it!
+        }
+
+        initMap();
+</script>*@
+    <script type="text/javascript">
+    var map = new L.Map('map');
+    var mqurl = 'http://{s}.mqcdn.com/naip/{z}/{x}/{y}.png';
+    var mqSubdomains = new Array("oatile1", "oatile2", "oatile3", "oatile4");
+    var mqattribution = 'Tiles Courtesy of <a href="http://www.mapquest.com/" target="_blank">MapQuest</a> <img src="http://developer.mapquest.com/content/osm/mq_logo.png"> Portions Courtesy NASA/JPL-Caltech and U.S. Depart. of Agriculture, Farm Service Agency';
+    mapquest = new L.TileLayer(mqurl, { maxZoom: 18, attribution: mqattribution, subdomains: mqSubdomains });
+    map.setView(new L.LatLng(39.5, -98.35), 4).addLayer(mapquest);
+
+    getStates();
+
+    function getStates() {
+        //#525252
+        var boundaryLayer = new L.GeoJSON();
+        boundaryLayer.on('featureparse', function (e) {
+            e.layer.setStyle({ color: '#BDBDBD', weight: 1, fill: true, fillColor: '#EF6548', fillOpacity: 0.85 });
+            var label = "";
+            if (e.properties && e.properties.STATE_NAME) {
+                label += "<b>Name:</b>: " + e.properties.STATE_NAME + "<br/>";
+            }
+            if (label != "") {
+                e.layer.bindPopup(label);
+            }
+        });
+        //geojsonLayer.addGeoJSON(tonopah);
+
+        $.getJSON(
+            "/Home/States",
+            function (geojson) {
+                $.each(geojson.features, function (i, feature) {
+                    boundaryLayer.addGeoJSON(feature);
+                })
+            });
+
+        map.addLayer(boundaryLayer);
+    }
+    </script>
