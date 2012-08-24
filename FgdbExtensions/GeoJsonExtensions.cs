@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using Esri.FileGDB;
@@ -27,18 +28,19 @@ namespace Zekiah.FGDB
 
         public static string ToGeoJson(this Esri.FileGDB.Row row)
         {
-            string retval = "{ \"type\": \"Feature\", ";
+            StringBuilder sb = new StringBuilder("{ \"type\": \"Feature\", ");
             var geom = row.GetGeometry();
-            string geomstr = "\"geometry\": " + geom.ToGeoJson() + ", ";
-            retval += geomstr;
-            retval += processFields(row);
-            retval += "}";
-            return retval;
+            sb.Append("\"geometry\": ");
+            sb.Append(geom.ToGeoJson());
+            sb.Append(", ");
+            sb.Append(processFields(row));
+            sb.Append("}");
+            return sb.ToString();
         }
 
         private static string processFields(Esri.FileGDB.Row row)
         {
-            string retval = "\"properties\": {";
+            StringBuilder sb = new StringBuilder("\"properties\": {");
             List<string> props = new List<string>();
             string proptemplate = "\"{0}\": \"{1}\"";
             for (int fldnum = 0; fldnum < row.FieldInformation.Count; fldnum++)
@@ -95,40 +97,42 @@ namespace Zekiah.FGDB
             }
             var proparray = props.ToArray();
             string propsjoin = string.Join(",", proparray);
-            retval += propsjoin;
-            retval += "}";
+            sb.Append(propsjoin);
+            sb.Append("}");
 
-            return retval;
+            return sb.ToString(); ;
         }
         
         public static string ToGeoJson(this Esri.FileGDB.ShapeBuffer geometry)
         {
             string retval = "";
             var shapeType = (ShapeType)geometry.shapeType;
+            //note: "M" values are not really supported. Relevant geometries are handled to extract Z values, if present.
             switch (shapeType)
             {
                 case ShapeType.Multipoint:
                 case ShapeType.MultipointZ:
+                case ShapeType.MultipointZM:
                     MultiPointShapeBuffer mptbuff = geometry;
                     retval = processMultiPointBuffer(mptbuff);
                     break;
                 case ShapeType.Point:
+                case ShapeType.PointZ:
+                case ShapeType.PointZM:
                     PointShapeBuffer pt = geometry;
                     retval = processPointBuffer(geometry);
                     break;
-                case ShapeType.PointZ:
-                    break;
                 case ShapeType.Polyline:
+                case ShapeType.PolylineZ:
+                case ShapeType.PolylineZM:
                     MultiPartShapeBuffer lbuff = geometry;
                     retval = processMultiPartBuffer(lbuff, "MultiLineString");
                     break;
-                case ShapeType.PolylineZ:
-                    break;
                 case ShapeType.Polygon:
+                case ShapeType.PolygonZ:
+                case ShapeType.PolygonZM:
                     MultiPartShapeBuffer pbuff = geometry;
                     retval = processMultiPartBuffer(pbuff, "MultiPolygon");
-                    break;
-                case ShapeType.PolygonZ:
                     break;
             }
             return retval;
@@ -136,30 +140,61 @@ namespace Zekiah.FGDB
 
         private static string processPointBuffer(PointShapeBuffer buffer)
         {
-            string retval = "{\"type\":\"Point\", \"coordinates\": ";
-            retval += getCoordinate(buffer.point.x, buffer.point.y) + "}";
-            return retval;
+            StringBuilder retval = new StringBuilder("{\"type\":\"Point\", \"coordinates\": ");
+            bool hasZ = false;
+            try
+            {
+                hasZ = (buffer.Z != null);
+            }
+            catch
+            {
+                hasZ = false;
+            }
+            string coord = hasZ ? getCoordinate(buffer.point.x, buffer.point.y, buffer.Z) : getCoordinate(buffer.point.x, buffer.point.y);
+            retval.Append(coord);
+            retval.Append("}");
+            return retval.ToString();
         }
 
         private static string processMultiPointBuffer(MultiPointShapeBuffer buffer)
         {
-            string retval = "{\"type\":\"MultiPoint\", \"coordinates\": [";
+            StringBuilder retval = new StringBuilder("{\"type\":\"MultiPoint\", \"coordinates\": [");
+            bool hasZ = false;
+            try
+            {
+                hasZ = (buffer.Zs != null);
+            }
+            catch
+            {
+                hasZ = false;
+            } 
             Point[] points = buffer.Points;
             List<string> coords = new List<string>();
             for (int i = 0; i < points.Length; i++)
             {
-                coords.Add(getCoordinate(points[i].x, points[i].y));
+                string coord = hasZ ? getCoordinate(points[i].x, points[i].y, buffer.Zs[i]) : getCoordinate(points[i].x, points[i].y);
+                coords.Add(coord);
             }
             string[] coordArray = coords.ToArray();
             string coordList = string.Join(",", coordArray);
-            retval += coordList + "]}";
-            return retval;
+            retval.Append(coordList);
+            retval.Append("]}");
+            return retval.ToString();
         }
 
         private static string processMultiPartBuffer(MultiPartShapeBuffer buffer, string geoJsonType)
         {
             List<string> delims = getMultipartDelimiter(geoJsonType);
-            string retval = "{\"type\":\"" + geoJsonType + "\", \"coordinates\": [";
+            bool hasZ = false;
+            try
+            {
+                hasZ = (buffer.Zs != null);
+            }
+            catch
+            {
+                hasZ = false;
+            } 
+            StringBuilder retval = new StringBuilder("{\"type\":\"" + geoJsonType + "\", \"coordinates\": [");
             int numPts = buffer.NumPoints;
             int numParts = buffer.NumParts;
             int[] parts = buffer.Parts;
@@ -181,8 +216,8 @@ namespace Zekiah.FGDB
                     coords = new List<string>();
                     partCount++;
                 }
-                string coord = getCoordinate(points[i].x, points[i].y);
-                coords.Add(getCoordinate(points[i].x, points[i].y));
+                string coord = hasZ ? getCoordinate(points[i].x, points[i].y, buffer.Zs[i]) : getCoordinate(points[i].x, points[i].y);
+                coords.Add(coord);
             }
             if (coords.Count > 0)
             {
@@ -192,8 +227,9 @@ namespace Zekiah.FGDB
             }
             string[] polyArray = polys.ToArray();
             string polyList = string.Join(",", polyArray);
-            retval += polyList + "]}";
-            return retval;
+            retval.Append(polyList);
+            retval.Append("]}");
+            return retval.ToString();
         }
 
         private static List<string> getMultipartDelimiter(string geoJsonType)
@@ -221,7 +257,13 @@ namespace Zekiah.FGDB
 
         private static string getCoordinate(double x, double y)
         {
-            string retval = string.Format("[{0}, {1}]", x, y);
+            string retval = string.Format(CultureInfo.InvariantCulture, "[{0}, {1}]", x, y);
+            return retval;
+        }
+
+        private static string getCoordinate(double x, double y, double z)
+        {
+            string retval = string.Format(CultureInfo.InvariantCulture, "[{0}, {1}, {2}]", x, y, z);
             return retval;
         }
     }

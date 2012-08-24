@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using Esri.FileGDB;
 
+
 //TODO: throw in some exception handling throughout
+
+//No attempt has been made to handle WKT coordinate ordering silliness.
 namespace Zekiah.FGDB
 {
     public static class WktExtensions
@@ -13,6 +17,7 @@ namespace Zekiah.FGDB
         {
             string retval = "";
             var shapeType = (ShapeType)geometry.shapeType;
+            //note: "M" values are not really supported. Relevant geometries are handled to extract Z values, if present.
             switch (shapeType)
             {
                 case ShapeType.Multipoint:
@@ -56,7 +61,7 @@ namespace Zekiah.FGDB
                 hasZ = false;
             }
             string coord = hasZ ? getCoordinate(buffer.point.x, buffer.point.y, buffer.Z) : getCoordinate(buffer.point.x, buffer.point.y);
-            retval += string.Format(retval, coord);
+            retval = string.Format(retval, coord);
             return retval;
         }
 
@@ -159,13 +164,13 @@ namespace Zekiah.FGDB
 
         private static string getCoordinate(double x, double y)
         {
-            string retval = string.Format("{0} {1}", x, y);
+            string retval = string.Format(CultureInfo.InvariantCulture, "{0} {1}", x, y);
             return retval;
         }
 
         private static string getCoordinate(double x, double y, double z)
         {
-            string retval = string.Format("{0} {1} {2}", x, y, z);
+            string retval = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", x, y, z);
             return retval;
         }
     }

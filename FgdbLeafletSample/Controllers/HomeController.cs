@@ -34,6 +34,7 @@ namespace FgdbLeafletSample.Controllers
                 RowCollection rows = statesTable.Search("*", "STATE_NAME LIKE 'M%'", RowInstance.Recycle);
                 var rval = rows.ToGeoJson();
                 gdb.Close();
+                //gdb.Dispose();
                 Response.ContentType = "application/json";
                 object result = this.Content(rval);
                 return result as ActionResult; ;
